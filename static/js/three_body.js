@@ -44,6 +44,8 @@ let torus = false;
 let follow_body = true;
 let follow_one = false;
 let tick = 0;
+let panning_momenum = 0;
+let panning_velocity = 0;
 // Add custom gravity function to the onUpdate event
 Events.on(runner, 'beforeUpdate', function(event) {
     tick ++;
@@ -62,24 +64,62 @@ Events.on(runner, 'beforeUpdate', function(event) {
             center_y += body.position.y*body.mass;
             total_mass += body.mass;
         });
-        center_x /= total_mass;
-        center_y /= total_mass;
+        if (total_mass > 0){
+            center_x /= total_mass;
+            center_y /= total_mass;
+        }
+        
+
+        // Re-calculate center of mass but now penalize far objects from the center. 
+        // This is to make the camera focus on the center of mass of the system
+        let penalized_center_x = 0;
+        let penalized_center_y = 0;
+        let penalized_total_mass = 0;
+        if (bodies.length > 1){
+            bodies.forEach(body => {
+                let dx = body.position.x - center_x;
+                let dy = body.position.y - center_y;
+                let distance = Math.sqrt(dx * dx + dy * dy);
+                let penalty = Math.pow(distance, 2);
+                penalized_center_x += body.position.x*body.mass/penalty;
+                penalized_center_y += body.position.y*body.mass/penalty;
+                penalized_total_mass += body.mass/penalty;
+            });
+            penalized_center_x /= penalized_total_mass;
+            penalized_center_y /= penalized_total_mass;
+        }else{
+            penalized_center_x = center_x;
+            penalized_center_y = center_y;
+            penalized_total_mass = total_mass;
+        }
+
+
 
         // Calculate the new bounds
         var current_center_x = (render.bounds.min.x + render.bounds.max.x) / 2;
         var current_center_y = (render.bounds.min.y + render.bounds.max.y) / 2;
 
-        let dx = current_center_x - center_x;
-        let dy = current_center_y - center_y;
+        let dx = current_center_x - penalized_center_x;
+        let dy = current_center_y - penalized_center_y;
         let distance = Math.sqrt(dx * dx + dy * dy);
         dx = dx/distance;
         dy = dy/distance;
+        
         let scale = Math.sqrt(distance);
         render.bounds.min.x -= dx*scale;
         render.bounds.min.y -= dy*scale;
         render.bounds.max.x -= dx*scale;
         render.bounds.max.y -= dy*scale;
-
+        /*
+        if (distance > 1){
+            panning_momenum += .1;
+            if (panning_momenum > 1){
+                panning_momenum = 1;
+            }
+        }else{
+            panning_momenum = 0;
+        }
+        */
         // Update the renderer with new bounds to focus on the center of mass
         Render.lookAt(render, {
             min: { x: render.bounds.min.x, y: render.bounds.min.y },
@@ -196,15 +236,7 @@ Events.on(runner, 'beforeUpdate', function(event) {
 
 // Function to generate a sphere with proportional mass
 function generateSphere(x, y, radius, kick=0.1) {
-    if (radius == 0){
-        //Generate a sphere with no mass that doesn't interact with radius 1
-        var sphere = Bodies.circle(x, y, 1, { 
-            mass: 0,
-            restitution: 0
-        });
-    }else{
-        var sphere = Bodies.circle(x, y, radius, { mass: Math.sqrt(Math.PI * radius)});
-    }
+    var sphere = Bodies.circle(x, y, radius, { mass: Math.sqrt(Math.PI * radius)});
     sphere.friction = 0;
     sphere.frictionAir = 0;
     sphere.frictionStatic = 0;
@@ -232,6 +264,7 @@ function generateSphere(x, y, radius, kick=0.1) {
         }
     }
     Composite.add(engine.world, sphere);
+    return sphere;
 }
 
 
@@ -287,14 +320,27 @@ Runner.run(runner, engine);
 document.addEventListener('click', function(event) {
     var mouseX = event.clientX - render.canvas.offsetLeft + render.bounds.min.x;
     var mouseY = event.clientY - render.canvas.offsetTop + render.bounds.min.y;
-
     // Check if mouse click is within the canvas world bounds
     if (mouseX > render.bounds.min.x && mouseX < render.bounds.max.x &&
         mouseY > render.bounds.min.y && mouseY < render.bounds.max.y) {
-        
-        // Generate sphere at the correct location
-        var radius = Math.random() * 10 + 5; // Random radius between 5 and 15
-        generateSphere(mouseX, mouseY, radius);
+        //Get form values of xVelocity, yVelocity, and radius
+        var xVelocity = parseFloat(document.getElementById('xVelocity').value);
+        var yVelocity = parseFloat(document.getElementById('yVelocity').value);
+        var radius = parseFloat(document.getElementById('mass').value);
+        if (isNaN(xVelocity)){
+            xVelocity = 0;
+        }
+        if (isNaN(yVelocity)){
+            yVelocity = 0;
+        }
+        if (isNaN(radius)){
+            radius = 5;
+        }
+        let sphere = generateSphere(mouseX, mouseY, radius, kick=0);
+        //Give sphere the velocity specified by the form
+        Body.setVelocity(sphere, { x: xVelocity, y: yVelocity });
+    }else{
+        console.log('out of bounds' + mouseX + ' ' + mouseY + ' ' + render.bounds.min.x + ' ' + render.bounds.max.x + ' ' + render.bounds.min.y + ' ' + render.bounds.max.y);
     }
 });
 
@@ -302,17 +348,23 @@ document.addEventListener('click', function(event) {
 const clear_bodies = ()=>{
     console.log('cleared');
     Composite.clear(engine.world);
+
     // Set the bounds to the center of the original canvas
     let centerX = render.options.width / 2;
     let centerY = render.options.height / 2;
     let halfWidth = render.options.width / 2;
     let halfHeight = render.options.height / 2;
+    render.bounds.min.x = centerX - halfWidth;
+    render.bounds.min.y = centerY - halfHeight;
+    render.bounds.max.x = centerX + halfWidth;
+    render.bounds.max.y = centerY + halfHeight;
 
     // Update the renderer with new bounds to look at the center
     Render.lookAt(render, {
         min: { x: centerX - halfWidth, y: centerY - halfHeight },
         max: { x: centerX + halfWidth, y: centerY + halfHeight }
     });
+    
 }
 
 const restart = ()=>{
