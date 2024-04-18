@@ -1,0 +1,20 @@
+html,body{
+    margin: 0;
+    overflow: hidden;
+    font-family: 'Jersey 25';
+}
+
+#hud {
+    display: flex;
+
+}
+#control-panel {
+    flex-grow: 1;
+    background-color: #003f5c;
+    color: white;
+    text-align: center;
+}
+#stats{
+    text-align: left;
+    margin: 1rem;
+}
