@@ -18,6 +18,8 @@ engine.world.gravity.y = 0; // Turn off gravity
 // Increase gravitational attraction between objects
 engine.world.gravity.scale = 0.0000000000001; // Adjust the scale value to make it stronger
 
+let follow_body = true;
+
 let wscale = 1;
 let hscale = 1;
 if (window.innerWidth > window.innerHeight) {
@@ -48,15 +50,28 @@ Events.on(runner, 'beforeUpdate', function(event) {
     if(bodies.length == 0){
         //Set center of screen matter.js to origin
     }
-    else{
+    else if (follow_body){
         //Set the center of matter.js canvas to the first body
         let body = bodies[0];
-        //ctx.translate(body.position.x, body.position.y);
+        // Calculate the new bounds
+        var centerX = body.position.x - render.options.width / 2;
+        var centerY = body.position.y - render.options.height / 2;
+        render.bounds.min.x = centerX;
+        render.bounds.min.y = centerY;
+        render.bounds.max.x = centerX + render.options.width;
+        render.bounds.max.y = centerY + render.options.height;
+
+        // Update the renderer with new bounds
+        Render.lookAt(render, {
+            min: { x: render.bounds.min.x, y: render.bounds.min.y },
+            max: { x: render.bounds.max.x, y: render.bounds.max.y }
+        });
+        
     }
 
 
     //If only one body
-    if (bodies.length >= 1) {
+    if (false && bodies.length >= 1) {
         //Gravitate to center
         let body = bodies[0];
         let dx = window.innerWidth*wscale/2 - body.position.x;
@@ -107,15 +122,22 @@ Events.on(runner, 'beforeUpdate', function(event) {
                 Body.setPosition(bodies[i], { x: bodies[i].position.x, y: 0 });
             }
         }
-    }else {
+    }else if (bodies.length > 2){
         //Delete objects when they go out of bounds
-        limit_x *= 3;
-        limit_y *= 3;
-        for (var i = 0; i < bodies.length; i++) {
-            if (bodies[i].position.x < -limit_x || bodies[i].position.x > limit_x || bodies[i].position.y < -limit_y || bodies[i].position.y > limit_y) {
-                Composite.remove(engine.world, bodies[i]);
-            }
+        let canvasCenterX = (render.bounds.min.x + render.bounds.max.x) / 2;
+        let canvasCenterY = (render.bounds.min.y + render.bounds.max.y) / 2;
+
+        let deletionDistance = Math.max(render.options.width, render.options.height) * 3;
+        bodies.forEach(body => {
+        let dx = body.position.x - canvasCenterX;
+        let dy = body.position.y - canvasCenterY;
+        let distanceFromCenter = Math.sqrt(dx * dx + dy * dy);
+
+        if (distanceFromCenter > deletionDistance) {
+            Composite.remove(engine.world, body);
         }
+    });
+
     }
     
     // Update Body Counter
@@ -135,8 +157,8 @@ Events.on(runner, 'beforeUpdate', function(event) {
     
 
 // Function to generate a sphere with proportional mass
-function generateSphere(x, y, radius, kick=0.3) {
-    var sphere = Bodies.circle(x, y, radius, { mass: Math.sqrt(Math.PI * radius * radius)});
+function generateSphere(x, y, radius, kick=0.1) {
+    var sphere = Bodies.circle(x, y, radius, { mass: Math.sqrt(Math.PI * radius)});
     sphere.friction = 0;
     sphere.frictionAir = 0;
     sphere.frictionStatic = 0;
@@ -217,12 +239,16 @@ Runner.run(runner, engine);
 
 // Add a listener for when the mouse is clicked to add a sphere onto the canvas
 document.addEventListener('click', function(event) {
-    //If mouse within canvas
-    if (event.clientX > render.bounds.min.x && event.clientX < render.bounds.max.x && event.clientY > render.bounds.min.y && event.clientY < render.bounds.max.y) {
-        var x = event.clientX;
-        var y = event.clientY;
-        var radius = Math.random() * 10 + 5; // Random radius between 20 and 70
-        generateSphere(x, y, radius);
+    var mouseX = event.clientX - render.canvas.offsetLeft + render.bounds.min.x;
+    var mouseY = event.clientY - render.canvas.offsetTop + render.bounds.min.y;
+
+    // Check if mouse click is within the canvas world bounds
+    if (mouseX > render.bounds.min.x && mouseX < render.bounds.max.x &&
+        mouseY > render.bounds.min.y && mouseY < render.bounds.max.y) {
+        
+        // Generate sphere at the correct location
+        var radius = Math.random() * 10 + 5; // Random radius between 5 and 15
+        generateSphere(mouseX, mouseY, radius);
     }
 });
 
@@ -239,14 +265,14 @@ const restart = ()=>{
         var x = window.innerWidth*wscale/2 + window.innerWidth*wscale/10*(i);
         var y = window.innerHeight*hscale/2 + window.innerHeight*hscale/10*(i);
         var radius = 50/(2*i+1); // Random radius between 20 and 70
-        generateSphere(x, y, radius,kick=i*.5);
+        generateSphere(x, y, radius,kick=i*.05);
         if (i==0){
             //Apply a force opposite to the second sphere to make them repel
             let sphere = Composite.allBodies(engine.world)[0];
             let dx = sphere.position.x - window.innerWidth*wscale/2 + window.innerWidth*wscale/10;
             let dy = sphere.position.y - window.innerHeight*hscale/2 + window.innerHeight*hscale/10;
             let distance = Math.sqrt(dx * dx + dy * dy);
-            let force = (sphere.mass) / (distance);
+            let force = .1*(sphere.mass) / (distance);
             Body.applyForce(sphere, sphere.position, { x: -force * dx / distance, y: .5*force * dy / distance });
 
         }
@@ -267,6 +293,12 @@ const bounce = ()=>{
     eat = false;
 }
 
+const follow_mode = ()=>{
+    follow_body = true;
+}
+const unfollow_mode = ()=>{
+    follow_body = false;
+}
 
 
 restart()
