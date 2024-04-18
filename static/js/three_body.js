@@ -18,7 +18,6 @@ engine.world.gravity.y = 0; // Turn off gravity
 // Increase gravitational attraction between objects
 engine.world.gravity.scale = 0.0000000000001; // Adjust the scale value to make it stronger
 
-let follow_body = true;
 
 let wscale = 1;
 let hscale = 1;
@@ -42,6 +41,8 @@ var canvas = render.canvas;
 var ctx=canvas.getContext('2d');
 
 let torus = false;
+let follow_body = true;
+let follow_one = false;
 let tick = 0;
 // Add custom gravity function to the onUpdate event
 Events.on(runner, 'beforeUpdate', function(event) {
@@ -51,6 +52,41 @@ Events.on(runner, 'beforeUpdate', function(event) {
         //Set center of screen matter.js to origin
     }
     else if (follow_body){
+        //Calculate the center of mass
+        
+        let center_x = 0;
+        let center_y = 0;
+        let total_mass = 0;
+        bodies.forEach(body => {
+            center_x += body.position.x*body.mass;
+            center_y += body.position.y*body.mass;
+            total_mass += body.mass;
+        });
+        center_x /= total_mass;
+        center_y /= total_mass;
+
+        // Calculate the new bounds
+        var current_center_x = (render.bounds.min.x + render.bounds.max.x) / 2;
+        var current_center_y = (render.bounds.min.y + render.bounds.max.y) / 2;
+
+        let dx = current_center_x - center_x;
+        let dy = current_center_y - center_y;
+        let distance = Math.sqrt(dx * dx + dy * dy);
+        dx = dx/distance;
+        dy = dy/distance;
+        let scale = Math.sqrt(distance);
+        render.bounds.min.x -= dx*scale;
+        render.bounds.min.y -= dy*scale;
+        render.bounds.max.x -= dx*scale;
+        render.bounds.max.y -= dy*scale;
+
+        // Update the renderer with new bounds to focus on the center of mass
+        Render.lookAt(render, {
+            min: { x: render.bounds.min.x, y: render.bounds.min.y },
+            max: { x: render.bounds.max.x, y: render.bounds.max.y }
+        });
+        
+    } else if (follow_one){
         //Set the center of matter.js canvas to the first body
         let body = bodies[0];
         // Calculate the new bounds
@@ -60,13 +96,11 @@ Events.on(runner, 'beforeUpdate', function(event) {
         render.bounds.min.y = centerY;
         render.bounds.max.x = centerX + render.options.width;
         render.bounds.max.y = centerY + render.options.height;
-
         // Update the renderer with new bounds
         Render.lookAt(render, {
             min: { x: render.bounds.min.x, y: render.bounds.min.y },
             max: { x: render.bounds.max.x, y: render.bounds.max.y }
         });
-        
     }
 
 
@@ -107,27 +141,31 @@ Events.on(runner, 'beforeUpdate', function(event) {
         }
     }
     //If body is out of bounds, teleport it to the other side
-    let limit_x = window.innerWidth*wscale;
-    let limit_y = window.innerHeight*hscale;
+    let canvasCenterX = (render.bounds.min.x + render.bounds.max.x) / 2;
+    let canvasCenterY = (render.bounds.min.y + render.bounds.max.y) / 2;
+    let limit_x_lower = canvasCenterX - window.innerWidth*wscale;
+    let limit_y_lower = canvasCenterY - window.innerHeight*hscale;
+    let limit_x_upper = canvasCenterX + window.innerWidth*wscale;
+    let limit_y_upper = canvasCenterY + window.innerHeight*hscale;
+
     if (torus) {
         for (var i = 0; i < bodies.length; i++) {
-            if (bodies[i].position.x < 0) {
-                Body.setPosition(bodies[i], { x: limit_x, y: bodies[i].position.y });
-            } else if (bodies[i].position.x > limit_x) {
-                Body.setPosition(bodies[i], { x: 0, y: bodies[i].position.y });
+            let body = bodies[i];
+            if (body.position.x < limit_x_lower) {
+                Body.setPosition(body, { x: limit_x_upper, y: body.position.y });
+            } else if (body.position.x > limit_x_upper) {
+                Body.setPosition(body, { x: limit_x_lower, y: body.position.y });
             }
-            if (bodies[i].position.y < 0) {
-                Body.setPosition(bodies[i], { x: bodies[i].position.x, y: limit_y });
-            } else if (bodies[i].position.y > limit_y) {
-                Body.setPosition(bodies[i], { x: bodies[i].position.x, y: 0 });
+            if (body.position.y < limit_y_lower) {
+                Body.setPosition(body, { x: body.position.x, y: limit_y_upper });
+            } else if (body.position.y > limit_y_upper) {
+                Body.setPosition(body, { x: body.position.x, y: limit_y_lower });
             }
         }
     }else if (bodies.length > 2){
         //Delete objects when they go out of bounds
-        let canvasCenterX = (render.bounds.min.x + render.bounds.max.x) / 2;
-        let canvasCenterY = (render.bounds.min.y + render.bounds.max.y) / 2;
 
-        let deletionDistance = Math.max(render.options.width, render.options.height) * 3;
+        let deletionDistance = Math.max(render.options.width, render.options.height) * 2;
         bodies.forEach(body => {
         let dx = body.position.x - canvasCenterX;
         let dy = body.position.y - canvasCenterY;
@@ -158,7 +196,15 @@ Events.on(runner, 'beforeUpdate', function(event) {
 
 // Function to generate a sphere with proportional mass
 function generateSphere(x, y, radius, kick=0.1) {
-    var sphere = Bodies.circle(x, y, radius, { mass: Math.sqrt(Math.PI * radius)});
+    if (radius == 0){
+        //Generate a sphere with no mass that doesn't interact with radius 1
+        var sphere = Bodies.circle(x, y, 1, { 
+            mass: 0,
+            restitution: 0
+        });
+    }else{
+        var sphere = Bodies.circle(x, y, radius, { mass: Math.sqrt(Math.PI * radius)});
+    }
     sphere.friction = 0;
     sphere.frictionAir = 0;
     sphere.frictionStatic = 0;
@@ -256,6 +302,17 @@ document.addEventListener('click', function(event) {
 const clear_bodies = ()=>{
     console.log('cleared');
     Composite.clear(engine.world);
+    // Set the bounds to the center of the original canvas
+    let centerX = render.options.width / 2;
+    let centerY = render.options.height / 2;
+    let halfWidth = render.options.width / 2;
+    let halfHeight = render.options.height / 2;
+
+    // Update the renderer with new bounds to look at the center
+    Render.lookAt(render, {
+        min: { x: centerX - halfWidth, y: centerY - halfHeight },
+        max: { x: centerX + halfWidth, y: centerY + halfHeight }
+    });
 }
 
 const restart = ()=>{
