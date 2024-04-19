@@ -40,12 +40,36 @@ var render = Render.create({
 var canvas = render.canvas;
 var ctx=canvas.getContext('2d');
 
+let configure_particles = true;
 let torus = false;
 let follow_body = true;
 let follow_one = false;
 let tick = 0;
 let panning_momenum = 0;
 let panning_velocity = 0;
+
+const get_center_of_mass = ()=>{
+    let bodies = Composite.allBodies(engine.world);
+    let center_x = 0;
+    let center_y = 0;
+    let total_mass = 0;
+    bodies.forEach(body => {
+        center_x += body.position.x*body.mass;
+        center_y += body.position.y*body.mass;
+        total_mass += body.mass;
+    });
+    if (total_mass > 0){
+        center_x /= total_mass;
+        center_y /= total_mass;
+    }else{
+        //Set to the center of the render window
+        center_x = render.options.width / 2;
+        center_y = render.options.height / 2;
+    }
+    return {x:center_x, y:center_y};
+
+}
+
 // Add custom gravity function to the onUpdate event
 Events.on(runner, 'beforeUpdate', function(event) {
     tick ++;
@@ -56,19 +80,9 @@ Events.on(runner, 'beforeUpdate', function(event) {
     else if (follow_body){
         //Calculate the center of mass
         
-        let center_x = 0;
-        let center_y = 0;
-        let total_mass = 0;
-        bodies.forEach(body => {
-            center_x += body.position.x*body.mass;
-            center_y += body.position.y*body.mass;
-            total_mass += body.mass;
-        });
-        if (total_mass > 0){
-            center_x /= total_mass;
-            center_y /= total_mass;
-        }
-        
+        let center = get_center_of_mass();
+        let center_x = center.x;
+        let center_y = center.y;
 
         // Re-calculate center of mass but now penalize far objects from the center. 
         // This is to make the camera focus on the center of mass of the system
@@ -235,7 +249,7 @@ Events.on(runner, 'beforeUpdate', function(event) {
     
 
 // Function to generate a sphere with proportional mass
-function generateSphere(x, y, radius, kick=0.1) {
+function generateSphere(x, y, radius, kick=0.2) {
     var sphere = Bodies.circle(x, y, radius, { mass: Math.sqrt(Math.PI * radius)});
     sphere.friction = 0;
     sphere.frictionAir = 0;
@@ -245,23 +259,24 @@ function generateSphere(x, y, radius, kick=0.1) {
         //If are no bodies on the canvas
         if (Composite.allBodies(engine.world).length == 0) {
             //pass
-        }else if (Composite.allBodies(engine.world).length == 1) {
+        }else{
             console.log("Activated")
-            //Make a kick that is tangential to the first body
-            let first_body = Composite.allBodies(engine.world)[0];
-            let dx = first_body.position.x - x;
-            let dy = first_body.position.y - y;
+            //Make a kick that is tangential to the center of mass
+            let center = get_center_of_mass();
+            let dx = center.x - x;
+            let dy = center.y - y;
             let distance = Math.sqrt(dx * dx + dy * dy);
             //Find the perpendicular vector
             let perp_x = -dy/Math.abs(dy);
             let perp_y = dx/Math.abs(dx);
             //Apply the kick
+            kick=.5 + Math.random();
             if (sphere.velocity != NaN){
-                Body.applyForce(sphere, { x: x, y: y }, { x: perp_x*kick, y: perp_y*kick });
+                Body.applyForce(sphere, { x: x, y: y }, { x: perp_x*kick/Math.sqrt(distance), y: perp_y*kick/Math.sqrt(distance) });
             }
-        }else{
-            Body.applyForce(sphere, { x: x, y: y }, { x: (Math.random() - 0.5)*kick, y: (Math.random() - 0.5)*kick });
         }
+        //Body.applyForce(sphere, { x: x, y: y }, { x: (Math.random() - 0.5)*kick, y: (Math.random() - 0.5)*kick });
+        
     }
     Composite.add(engine.world, sphere);
     return sphere;
@@ -323,22 +338,27 @@ document.addEventListener('click', function(event) {
     // Check if mouse click is within the canvas world bounds
     if (mouseX > render.bounds.min.x && mouseX < render.bounds.max.x &&
         mouseY > render.bounds.min.y && mouseY < render.bounds.max.y) {
-        //Get form values of xVelocity, yVelocity, and radius
-        var xVelocity = parseFloat(document.getElementById('xVelocity').value);
-        var yVelocity = parseFloat(document.getElementById('yVelocity').value);
-        var radius = parseFloat(document.getElementById('mass').value);
-        if (isNaN(xVelocity)){
-            xVelocity = 0;
+
+        if (configure_particles){
+            //Get form values of xVelocity, yVelocity, and radius
+            var xVelocity = parseFloat(document.getElementById('xVelocity').value);
+            var yVelocity = parseFloat(document.getElementById('yVelocity').value);
+            var radius = parseFloat(document.getElementById('mass').value);
+            if (isNaN(xVelocity)){
+                xVelocity = 0;
+            }
+            if (isNaN(yVelocity)){
+                yVelocity = 0;
+            }
+            if (isNaN(radius)){
+                radius = 5;
+            }
+            let sphere = generateSphere(mouseX, mouseY, radius, kick=0);
+            //Give sphere the velocity specified by the form
+            Body.setVelocity(sphere, { x: xVelocity, y: yVelocity });
+        }else{
+            generateSphere(mouseX, mouseY, Math.random()*10+5);
         }
-        if (isNaN(yVelocity)){
-            yVelocity = 0;
-        }
-        if (isNaN(radius)){
-            radius = 5;
-        }
-        let sphere = generateSphere(mouseX, mouseY, radius, kick=0);
-        //Give sphere the velocity specified by the form
-        Body.setVelocity(sphere, { x: xVelocity, y: yVelocity });
     }else{
         console.log('out of bounds' + mouseX + ' ' + mouseY + ' ' + render.bounds.min.x + ' ' + render.bounds.max.x + ' ' + render.bounds.min.y + ' ' + render.bounds.max.y);
     }
@@ -369,21 +389,46 @@ const clear_bodies = ()=>{
 
 const restart = ()=>{
     clear_bodies();
+    starting_velocity = 4;
     // Generate three spheres randomly placed on the canvas
-    for (var i = 0; i < 2; i++) {
-        var x = window.innerWidth*wscale/2 + window.innerWidth*wscale/10*(i);
-        var y = window.innerHeight*hscale/2 + window.innerHeight*hscale/10*(i);
-        var radius = 50/(2*i+1); // Random radius between 20 and 70
-        generateSphere(x, y, radius,kick=i*.05);
+    center_x = render.options.width / 2;
+    center_y = render.options.height / 2;
+    for (var i = 0; i < 3; i++) {
         if (i==0){
-            //Apply a force opposite to the second sphere to make them repel
-            let sphere = Composite.allBodies(engine.world)[0];
-            let dx = sphere.position.x - window.innerWidth*wscale/2 + window.innerWidth*wscale/10;
-            let dy = sphere.position.y - window.innerHeight*hscale/2 + window.innerHeight*hscale/10;
+            generateSphere(center_x, center_y, 50,kick=0);
+        }else if (i==1){
+            let sphere = generateSphere(center_x+100, center_y+100, 10,kick=0);
+            //Set the velocity to be tangential to the center of mass
+            let dx = center_x - sphere.position.x;
+            let dy = center_y - sphere.position.y;
             let distance = Math.sqrt(dx * dx + dy * dy);
-            let force = .1*(sphere.mass) / (distance);
-            Body.applyForce(sphere, sphere.position, { x: -force * dx / distance, y: .5*force * dy / distance });
-
+            //Find the perpendicular vector
+            let perp_x = -dy/Math.abs(dy)*starting_velocity;
+            let perp_y = dx/Math.abs(dx)*starting_velocity;
+            //Apply the velocity
+            Body.setVelocity(sphere, { x: perp_x, y: perp_y });
+        }else if (i==2){
+            let sphere = generateSphere(center_x-100, center_y-100, 10,kick=0);
+            //Set the velocity to be tangential to the center of mass
+            let dx = center_x - sphere.position.x;
+            let dy = center_y - sphere.position.y;
+            let distance = Math.sqrt(dx * dx + dy * dy);
+            //Find the perpendicular vector
+            let perp_x = -dy/Math.abs(dy)*starting_velocity;
+            let perp_y = dx/Math.abs(dx)*starting_velocity;
+            //Apply the velocity
+            Body.setVelocity(sphere, { x: perp_x, y: perp_y });
+        }else if (i==3){
+            let sphere = generateSphere(center_x-110, center_y-110, 5,kick=0);
+            //Set the velocity to be tangential to the center of mass
+            let dx = center_x - sphere.position.x;
+            let dy = center_y - sphere.position.y;
+            let distance = Math.sqrt(dx * dx + dy * dy);
+            //Find the perpendicular vector
+            let perp_x = -dy/Math.abs(dy)*starting_velocity*.9;
+            let perp_y = dx/Math.abs(dx)*starting_velocity*.9;
+            //Apply the velocity
+            Body.setVelocity(sphere, { x: perp_x, y: perp_y });
         }
     }
 }
@@ -408,6 +453,26 @@ const follow_mode = ()=>{
 const unfollow_mode = ()=>{
     follow_body = false;
 }
+const configure_particles_mode = ()=>{
+    if (configure_particles){
+        configure_particles=false;
+    }else{
+        configure_particles = true;
+    }
+    let ele = document.getElementById("configure-particles-button")
+    //Change text to "Configure Particles" or "Randomize Particles"
+    if (configure_particles){
+        ele.innerHTML = "Randomize Particles";
+        document.getElementById('mass').disabled = false;
+        document.getElementById('xVelocity').disabled = false;
+        document.getElementById('yVelocity').disabled = false;
+    }else{
+        ele.innerHTML = "Configure Particles";
+        document.getElementById('mass').disabled = true;
+        document.getElementById('xVelocity').disabled = true;
+        document.getElementById('yVelocity').disabled = true;
+    }
 
-
+}
+configure_particles_mode();
 restart()
