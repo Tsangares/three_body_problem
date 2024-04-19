@@ -197,10 +197,10 @@ Events.on(runner, 'beforeUpdate', function(event) {
     //If body is out of bounds, teleport it to the other side
     let canvasCenterX = (render.bounds.min.x + render.bounds.max.x) / 2;
     let canvasCenterY = (render.bounds.min.y + render.bounds.max.y) / 2;
-    let limit_x_lower = canvasCenterX - window.innerWidth*wscale;
-    let limit_y_lower = canvasCenterY - window.innerHeight*hscale;
-    let limit_x_upper = canvasCenterX + window.innerWidth*wscale;
-    let limit_y_upper = canvasCenterY + window.innerHeight*hscale;
+    let limit_x_lower = canvasCenterX - window.innerWidth*wscale/2;
+    let limit_y_lower = canvasCenterY - window.innerHeight*hscale/2;
+    let limit_x_upper = canvasCenterX + window.innerWidth*wscale/2;
+    let limit_y_upper = canvasCenterY + window.innerHeight*hscale/2;
 
     if (torus) {
         for (var i = 0; i < bodies.length; i++) {
@@ -435,6 +435,7 @@ const restart = ()=>{
 
 const torus_mode = ()=>{
     torus = true;
+    unfollow_mode();
 }
 const plane = ()=>{
     torus = false;
