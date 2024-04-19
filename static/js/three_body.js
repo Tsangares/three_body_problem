@@ -1,5 +1,5 @@
 // module aliases
-var Engine = Matter.Engine,
+let Engine = Matter.Engine,
     Render = Matter.Render,
     Runner = Matter.Runner,
     Bodies = Matter.Bodies,
@@ -8,11 +8,11 @@ var Engine = Matter.Engine,
     Composite = Matter.Composite;
 
 // create runner
-var runner = Runner.create();
+let runner = Runner.create();
 
 // Custom Gravity Engine
 // create an engine
-var engine = Engine.create();
+let engine = Engine.create();
 engine.world.gravity.y = 0; // Turn off gravity
 
 // Increase gravitational attraction between objects
@@ -27,7 +27,7 @@ if (window.innerWidth > window.innerHeight) {
     hscale = 2/3;
 }
 // create a renderer
-var render = Render.create({
+let render = Render.create({
     element: document.getElementById('matter'),
     engine: engine,
     options: {
@@ -37,8 +37,8 @@ var render = Render.create({
     }
 });
 
-var canvas = render.canvas;
-var ctx=canvas.getContext('2d');
+let canvas = render.canvas;
+let ctx=canvas.getContext('2d');
 
 let configure_particles = true;
 let torus = false;
@@ -73,7 +73,7 @@ const get_center_of_mass = ()=>{
 // Add custom gravity function to the onUpdate event
 Events.on(runner, 'beforeUpdate', function(event) {
     tick ++;
-    var bodies = Composite.allBodies(engine.world);
+    let bodies = Composite.allBodies(engine.world);
     if(bodies.length == 0){
         //Set center of screen matter.js to origin
     }
@@ -110,42 +110,44 @@ Events.on(runner, 'beforeUpdate', function(event) {
 
 
         // Calculate the new bounds
-        var current_center_x = (render.bounds.min.x + render.bounds.max.x) / 2;
-        var current_center_y = (render.bounds.min.y + render.bounds.max.y) / 2;
+        let current_center_x = Math.round((render.bounds.min.x + render.bounds.max.x) / 2);
+        let current_center_y = Math.round((render.bounds.min.y + render.bounds.max.y) / 2);
 
         let dx = current_center_x - penalized_center_x;
         let dy = current_center_y - penalized_center_y;
-        let distance = Math.sqrt(dx * dx + dy * dy);
-        dx = dx/distance;
-        dy = dy/distance;
-        
-        let scale = Math.sqrt(distance);
-        render.bounds.min.x -= dx*scale;
-        render.bounds.min.y -= dy*scale;
-        render.bounds.max.x -= dx*scale;
-        render.bounds.max.y -= dy*scale;
-        /*
-        if (distance > 1){
-            panning_momenum += .1;
-            if (panning_momenum > 1){
-                panning_momenum = 1;
+        let distance = Math.round(Math.sqrt(dx * dx + dy * dy));
+        if (distance > 1) {
+            dx = dx/distance;
+            dy = dy/distance;
+            
+            let scale = Math.sqrt(distance);
+            render.bounds.min.x -= Math.round(dx*scale);
+            render.bounds.min.y -= Math.round(dy*scale);
+            render.bounds.max.x -= Math.round(dx*scale);
+            render.bounds.max.y -= Math.round(dy*scale);
+            /*
+            if (distance > 1){
+                panning_momenum += .1;
+                if (panning_momenum > 1){
+                    panning_momenum = 1;
+                }
+            }else{
+                panning_momenum = 0;
             }
-        }else{
-            panning_momenum = 0;
+            */
+            // Update the renderer with new bounds to focus on the center of mass
+            Render.lookAt(render, {
+                min: { x: render.bounds.min.x, y: render.bounds.min.y },
+                max: { x: render.bounds.max.x, y: render.bounds.max.y }
+            });
         }
-        */
-        // Update the renderer with new bounds to focus on the center of mass
-        Render.lookAt(render, {
-            min: { x: render.bounds.min.x, y: render.bounds.min.y },
-            max: { x: render.bounds.max.x, y: render.bounds.max.y }
-        });
         
     } else if (follow_one){
         //Set the center of matter.js canvas to the first body
         let body = bodies[0];
         // Calculate the new bounds
-        var centerX = body.position.x - render.options.width / 2;
-        var centerY = body.position.y - render.options.height / 2;
+        let centerX = body.position.x - render.options.width / 2;
+        let centerY = body.position.y - render.options.height / 2;
         render.bounds.min.x = centerX;
         render.bounds.min.y = centerY;
         render.bounds.max.x = centerX + render.options.width;
@@ -176,17 +178,17 @@ Events.on(runner, 'beforeUpdate', function(event) {
         //Body.applyForce(body, body.position, { x: -friction_x, y: -friction_y });
     }
     if (bodies.length > 1) {
-        for (var i = 0; i < bodies.length; i++) {
-            var bodyA = bodies[i];
+        for (let i = 0; i < bodies.length; i++) {
+            let bodyA = bodies[i];
 
-            for (var j = i + 1; j < bodies.length; j++) {
-                var bodyB = bodies[j];
+            for (let j = i + 1; j < bodies.length; j++) {
+                let bodyB = bodies[j];
 
                 // Calculate gravitational force between two bodies
-                var dx = bodyB.position.x - bodyA.position.x;
-                var dy = bodyB.position.y - bodyA.position.y;
-                var distance = Math.sqrt(dx * dx + dy * dy);
-                var force = (bodyA.mass * bodyB.mass) / (distance * distance);
+                let dx = bodyB.position.x - bodyA.position.x;
+                let dy = bodyB.position.y - bodyA.position.y;
+                let distance = Math.sqrt(dx * dx + dy * dy);
+                let force = (bodyA.mass * bodyB.mass) / (distance * distance);
                 
                 // Apply force to each body
                 Body.applyForce(bodyA, bodyA.position, { x: force * dx / distance, y: force * dy / distance });
@@ -203,7 +205,7 @@ Events.on(runner, 'beforeUpdate', function(event) {
     let limit_y_upper = canvasCenterY + window.innerHeight*hscale/2;
 
     if (torus) {
-        for (var i = 0; i < bodies.length; i++) {
+        for (let i = 0; i < bodies.length; i++) {
             let body = bodies[i];
             if (body.position.x < limit_x_lower) {
                 Body.setPosition(body, { x: limit_x_upper, y: body.position.y });
@@ -239,7 +241,7 @@ Events.on(runner, 'beforeUpdate', function(event) {
         // Update position of every object in the stats panel rounded to 5 decimals
         let stats_panel = document.getElementById('stats');
         let positions = '';
-        for (var i = 0; i < bodies.length; i++) {
+        for (let i = 0; i < bodies.length; i++) {
             let velocity = Math.sqrt(bodies[i].velocity.x*bodies[i].velocity.x + bodies[i].velocity.y*bodies[i].velocity.y);
             positions += 'Object ' + (i + 1) + ': (' + bodies[i].position.x.toFixed(2) + ', ' + bodies[i].position.y.toFixed(2) + ') Velocity: '+velocity.toFixed(2)+' <br>';
         }
@@ -250,7 +252,7 @@ Events.on(runner, 'beforeUpdate', function(event) {
 
 // Function to generate a sphere with proportional mass
 function generateSphere(x, y, radius, kick=0.2) {
-    var sphere = Bodies.circle(x, y, radius, { mass: Math.sqrt(Math.PI * radius)});
+    let sphere = Bodies.circle(x, y, radius, { mass: Math.sqrt(Math.PI * radius)});
     sphere.friction = 0;
     sphere.frictionAir = 0;
     sphere.frictionStatic = 0;
@@ -286,27 +288,27 @@ function generateSphere(x, y, radius, kick=0.2) {
 
 let eat = false;
 Events.on(engine, 'collisionStart', function(event) {
-    var pairs = event.pairs;
+    let pairs = event.pairs;
     if (eat){
     // Combine each pair of colliding bodies
     pairs.forEach(function(pair) {
-        var bodyA = pair.bodyA;
-        var bodyB = pair.bodyB;
+        let bodyA = pair.bodyA;
+        let bodyB = pair.bodyB;
 
         // Calculate the midpoint for the new body
-        var newX = (bodyA.position.x + bodyB.position.x) / 2;
-        var newY = (bodyA.position.y + bodyB.position.y) / 2;
+        let newX = (bodyA.position.x + bodyB.position.x) / 2;
+        let newY = (bodyA.position.y + bodyB.position.y) / 2;
 
         // Calculate the combined mass
-        var newMass = bodyA.mass + bodyB.mass;
+        let newMass = bodyA.mass + bodyB.mass;
 
         // Calculate combined velocity using conservation of momentum
-        var newVelocityX = (bodyA.velocity.x * bodyA.mass + bodyB.velocity.x * bodyB.mass) / newMass;
-        var newVelocityY = (bodyA.velocity.y * bodyA.mass + bodyB.velocity.y * bodyB.mass) / newMass;
+        let newVelocityX = (bodyA.velocity.x * bodyA.mass + bodyB.velocity.x * bodyB.mass) / newMass;
+        let newVelocityY = (bodyA.velocity.y * bodyA.mass + bodyB.velocity.y * bodyB.mass) / newMass;
 
         // Create a new body with the combined mass and velocity
-        var newRadius = bodyA.circleRadius + bodyB.circleRadius;
-        var newBody = Bodies.circle(newX, newY, newRadius, { 
+        let newRadius = bodyA.circleRadius + bodyB.circleRadius;
+        let newBody = Bodies.circle(newX, newY, newRadius, { 
             mass: newMass,
             friction: 0,
             frictionAir: 0,
@@ -333,17 +335,17 @@ Runner.run(runner, engine);
 
 // Add a listener for when the mouse is clicked to add a sphere onto the canvas
 document.addEventListener('click', function(event) {
-    var mouseX = event.clientX - render.canvas.offsetLeft + render.bounds.min.x;
-    var mouseY = event.clientY - render.canvas.offsetTop + render.bounds.min.y;
+    let mouseX = event.clientX - render.canvas.offsetLeft + render.bounds.min.x;
+    let mouseY = event.clientY - render.canvas.offsetTop + render.bounds.min.y;
     // Check if mouse click is within the canvas world bounds
     if (mouseX > render.bounds.min.x && mouseX < render.bounds.max.x &&
         mouseY > render.bounds.min.y && mouseY < render.bounds.max.y) {
 
         if (configure_particles){
             //Get form values of xVelocity, yVelocity, and radius
-            var xVelocity = parseFloat(document.getElementById('xVelocity').value);
-            var yVelocity = parseFloat(document.getElementById('yVelocity').value);
-            var radius = parseFloat(document.getElementById('mass').value);
+            let xVelocity = parseFloat(document.getElementById('xVelocity').value);
+            let yVelocity = parseFloat(document.getElementById('yVelocity').value);
+            let radius = parseFloat(document.getElementById('mass').value);
             if (isNaN(xVelocity)){
                 xVelocity = 0;
             }
@@ -393,7 +395,7 @@ const restart = ()=>{
     // Generate three spheres randomly placed on the canvas
     center_x = render.options.width / 2;
     center_y = render.options.height / 2;
-    for (var i = 0; i < 3; i++) {
+    for (let i = 0; i < 3; i++) {
         if (i==0){
             generateSphere(center_x, center_y, 50,kick=0);
         }else if (i==1){
